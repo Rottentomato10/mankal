@@ -53,3 +53,6 @@ prisma/*.db-journal
 # PWA
 public/sw.js
 public/workbox-*.js
+.env.local
+.env.local
+.env.local
