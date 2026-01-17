@@ -1,0 +1,897 @@
+openapi: 3.1.0
+info:
+  title: CEOs Financial Management API
+  description: API for the CEOs (מנכ"לים) personal finance PWA
+  version: 1.0.0
+  contact:
+    name: CEOs Development Team
+
+servers:
+  - url: /api
+    description: Next.js API routes
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Transactions
+    description: Income and expense management
+  - name: Categories
+    description: Expense category management
+  - name: Dashboard
+    description: Analytics and summaries
+  - name: Export
+    description: PDF export functionality
+
+paths:
+  # ============================================
+  # AUTH
+  # ============================================
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in (Demo Mode)
+      description: |
+        Authenticates user and sets session cookie.
+        In demo mode, any request creates/retrieves the demo user.
+      operationId: login
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provider:
+                  type: string
+                  enum: [google]
+                  description: OAuth provider (for future use)
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Session cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Sign out
+      description: Clears session cookie
+      operationId: logout
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logged out successfully
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      description: Returns the authenticated user's profile
+      operationId: getCurrentUser
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # TRANSACTIONS
+  # ============================================
+  /transactions:
+    get:
+      tags: [Transactions]
+      summary: List transactions
+      description: Get paginated list of user's transactions with optional filters
+      operationId: listTransactions
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [INCOME, EXPENSE]
+          description: Filter by transaction type
+        - name: month
+          in: query
+          schema:
+            type: string
+            format: date
+            example: '2026-01-01'
+          description: Filter by month (first day of month)
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by category ID
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Items per page
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transaction'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Transactions]
+      summary: Create transaction
+      description: Create a new income or expense transaction
+      operationId: createTransaction
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionCreate'
+      responses:
+        '201':
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /transactions/{id}:
+    get:
+      tags: [Transactions]
+      summary: Get transaction
+      description: Get a single transaction by ID
+      operationId: getTransaction
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Transactions]
+      summary: Update transaction
+      description: Update an existing transaction
+      operationId: updateTransaction
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionUpdate'
+      responses:
+        '200':
+          description: Transaction updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Transactions]
+      summary: Delete transaction
+      description: Permanently delete a transaction
+      operationId: deleteTransaction
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Transaction deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /transactions/sync:
+    post:
+      tags: [Transactions]
+      summary: Sync offline transactions
+      description: |
+        Bulk sync of offline queue. Uses last-write-wins for conflicts.
+        Returns processed results for each operation.
+      operationId: syncTransactions
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/SyncOperation'
+      responses:
+        '200':
+          description: Sync results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SyncResult'
+                  serverTimestamp:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # CATEGORIES
+  # ============================================
+  /categories:
+    get:
+      tags: [Categories]
+      summary: List categories
+      description: Get user's expense categories
+      operationId: listCategories
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: includeArchived
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include archived categories
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /categories/{id}:
+    put:
+      tags: [Categories]
+      summary: Update category
+      description: Rename or reorder a category
+      operationId: updateCategory
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpdate'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /categories/{id}/archive:
+    post:
+      tags: [Categories]
+      summary: Archive category
+      description: Soft-delete a category (hidden from new entries but visible in history)
+      operationId: archiveCategory
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Category archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: Cannot archive last active category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /categories/{id}/restore:
+    post:
+      tags: [Categories]
+      summary: Restore category
+      description: Restore an archived category
+      operationId: restoreCategory
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Category restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # DASHBOARD
+  # ============================================
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Get financial summary
+      description: Get income/expense totals and balance for a period
+      operationId: getDashboardSummary
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: string
+            format: date
+            example: '2026-01-01'
+          description: Month to summarize (first day). If omitted, returns all-time.
+      responses:
+        '200':
+          description: Financial summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dashboard/category-breakdown:
+    get:
+      tags: [Dashboard]
+      summary: Get category breakdown
+      description: Get expense totals by category for pie chart
+      operationId: getCategoryBreakdown
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+            example: '2026-01-01'
+      responses:
+        '200':
+          description: Category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryBreakdown'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dashboard/monthly-trends:
+    get:
+      tags: [Dashboard]
+      summary: Get monthly trends
+      description: Get monthly income/expense totals for year bar chart
+      operationId: getMonthlyTrends
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        '200':
+          description: Monthly trends
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MonthlyTrend'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dashboard/available-months:
+    get:
+      tags: [Dashboard]
+      summary: Get available months
+      description: Get list of months that have transaction data (for smart filter)
+      operationId: getAvailableMonths
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Available months
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  format: date
+                  example: '2026-01-01'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # EXPORT
+  # ============================================
+  /export/pdf:
+    get:
+      tags: [Export]
+      summary: Export to PDF
+      description: Generate PDF summary for a month or year
+      operationId: exportPdf
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: string
+            format: date
+            example: '2026-01-01'
+          description: Specific month (first day). Mutually exclusive with year.
+        - name: year
+          in: query
+          schema:
+            type: integer
+            example: 2026
+          description: Full year. Mutually exclusive with month.
+      responses:
+        '200':
+          description: PDF file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Must specify either month or year
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No data for the specified period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+      description: HTTP-only session cookie
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, name, createdAt]
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [INCOME, EXPENSE]
+        amount:
+          type: number
+          format: decimal
+          description: Amount in ILS
+        date:
+          type: string
+          format: date
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+          description: Denormalized category name for display
+        paymentMethod:
+          type: string
+          enum: [CASH, CARD]
+          nullable: true
+        source:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, type, amount, date, createdAt, updatedAt]
+
+    TransactionCreate:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [INCOME, EXPENSE]
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          maximum: 10000000
+        date:
+          type: string
+          format: date
+        categoryId:
+          type: string
+          format: uuid
+          description: Required for EXPENSE
+        paymentMethod:
+          type: string
+          enum: [CASH, CARD]
+          description: Required for EXPENSE
+        source:
+          type: string
+          maxLength: 100
+          description: Required for INCOME
+        description:
+          type: string
+          maxLength: 500
+      required: [type, amount, date]
+
+    TransactionUpdate:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          maximum: 10000000
+        date:
+          type: string
+          format: date
+        categoryId:
+          type: string
+          format: uuid
+        paymentMethod:
+          type: string
+          enum: [CASH, CARD]
+        source:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        displayOrder:
+          type: integer
+          minimum: 1
+          maximum: 8
+        isArchived:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, displayOrder, isArchived, createdAt]
+
+    CategoryUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        displayOrder:
+          type: integer
+          minimum: 1
+          maximum: 8
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalIncome:
+          type: number
+          format: decimal
+        totalExpenses:
+          type: number
+          format: decimal
+        netBalance:
+          type: number
+          format: decimal
+        incomePercentage:
+          type: number
+          format: decimal
+          description: Percentage of income remaining after expenses
+      required: [totalIncome, totalExpenses, netBalance, incomePercentage]
+
+    CategoryBreakdown:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        total:
+          type: number
+          format: decimal
+        percentage:
+          type: number
+          format: decimal
+      required: [categoryId, categoryName, total, percentage]
+
+    MonthlyTrend:
+      type: object
+      properties:
+        month:
+          type: string
+          format: date
+        income:
+          type: number
+          format: decimal
+        expenses:
+          type: number
+          format: decimal
+      required: [month, income, expenses]
+
+    SyncOperation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Client-generated operation ID
+        operation:
+          type: string
+          enum: [CREATE, UPDATE, DELETE]
+        entityType:
+          type: string
+          enum: [transaction, category]
+        entityId:
+          type: string
+          format: uuid
+        payload:
+          type: object
+          description: Entity data for CREATE/UPDATE
+        clientTimestamp:
+          type: string
+          format: date-time
+      required: [id, operation, entityType, entityId, clientTimestamp]
+
+    SyncResult:
+      type: object
+      properties:
+        operationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [SUCCESS, CONFLICT_RESOLVED, ERROR]
+        entity:
+          type: object
+          description: Resulting entity state (if applicable)
+        error:
+          type: string
+          description: Error message (if status=ERROR)
+      required: [operationId, status]
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required: [page, limit, total, totalPages]
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+      required: [error, message]
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: UNAUTHORIZED
+            message: Authentication required
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: NOT_FOUND
+            message: Resource not found
+
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: VALIDATION_ERROR
+            message: Invalid request data
+            details:
+              amount: Amount must be greater than 0
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: INTERNAL_ERROR
+            message: An unexpected error occurred

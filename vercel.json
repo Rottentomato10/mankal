@@ -1,0 +1,8 @@
+{
+  "buildCommand": "cp prisma/schema.production.prisma prisma/schema.prisma && npx prisma generate && npm run build",
+  "framework": "nextjs",
+  "regions": ["fra1"],
+  "env": {
+    "PRISMA_GENERATE_DATAPROXY": "true"
+  }
+}
