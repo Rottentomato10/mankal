@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
-import { getCurrentUserId } from '@/lib/auth/session'
+import { getCurrentUserId, isInDemoMode } from '@/lib/auth/session'
 import { createTransactionSchema } from '@/types/schemas'
 
 /**
@@ -101,6 +101,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Demo users cannot create transactions
+    if (await isInDemoMode()) {
+      return NextResponse.json(
+        { error: 'Demo mode - cannot create transactions. Please login with Google.' },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
     console.log('Transaction request body:', JSON.stringify(body, null, 2))
 
@@ -188,6 +196,14 @@ export async function DELETE(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Demo users cannot delete transactions
+    if (await isInDemoMode()) {
+      return NextResponse.json(
+        { error: 'Demo mode - cannot delete transactions. Please login with Google.' },
+        { status: 403 }
+      )
     }
 
     const { searchParams } = new URL(request.url)

@@ -17,7 +17,7 @@ interface Transaction {
 }
 
 export default function HomePage() {
-  const { logout } = useAuth()
+  const { logout, isDemo } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [totalIncome, setTotalIncome] = useState(0)
   const [totalExpenses, setTotalExpenses] = useState(0)
@@ -103,18 +103,20 @@ export default function HomePage() {
   return (
     <div style={{ padding: '20px', paddingBottom: '100px', maxWidth: '480px', margin: '0 auto', minHeight: '100vh' }}>
       {/* Demo Warning Banner */}
-      <div style={{
-        background: 'rgba(251, 113, 133, 0.15)',
-        border: '1px solid var(--expense)',
-        borderRadius: '12px',
-        padding: '12px 16px',
-        marginBottom: '20px',
-        textAlign: 'center'
-      }}>
-        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--expense)' }}>
-          מצב דמו - הנתונים לא נשמרים בענן ויימחקו
-        </p>
-      </div>
+      {isDemo && (
+        <div style={{
+          background: 'rgba(251, 113, 133, 0.15)',
+          border: '1px solid var(--expense)',
+          borderRadius: '12px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          textAlign: 'center'
+        }}>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--expense)' }}>
+            👀 מצב צפייה בלבד - התחבר עם Google כדי לנהל את הכספים שלך
+          </p>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '30px', position: 'relative' }}>
@@ -139,9 +141,11 @@ export default function HomePage() {
           מבית פורשים כנף
         </span>
         <h1 style={{ margin: '4px 0 0 0', fontSize: '2rem', fontWeight: 800, letterSpacing: '-1px' }}>מנכ"לים</h1>
-        <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', display: 'block', marginTop: '4px' }}>
-          מצב דמו • Demo Mode
-        </span>
+        {isDemo && (
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', display: 'block', marginTop: '4px' }}>
+            מצב צפייה • Demo Mode
+          </span>
+        )}
       </div>
 
       {/* Month Selector - Clickable */}
@@ -267,36 +271,58 @@ export default function HomePage() {
       {/* Quick Actions */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
         <button
-          onClick={() => setShowExpenseModal(true)}
+          onClick={() => !isDemo && setShowExpenseModal(true)}
+          disabled={isDemo}
           style={{
             flex: 1,
             padding: '16px',
             borderRadius: '16px',
-            background: 'rgba(251, 113, 133, 0.15)',
-            border: '1px solid var(--expense)',
-            color: 'var(--expense)',
+            background: isDemo ? 'rgba(255, 255, 255, 0.05)' : 'rgba(251, 113, 133, 0.15)',
+            border: `1px solid ${isDemo ? 'rgba(255,255,255,0.1)' : 'var(--expense)'}`,
+            color: isDemo ? 'var(--text-dim)' : 'var(--expense)',
             fontSize: '1rem',
-            fontWeight: 600
+            fontWeight: 600,
+            cursor: isDemo ? 'not-allowed' : 'pointer',
+            opacity: isDemo ? 0.5 : 1
           }}
         >
           ➖ הוצאה
         </button>
         <button
-          onClick={() => setShowIncomeModal(true)}
+          onClick={() => !isDemo && setShowIncomeModal(true)}
+          disabled={isDemo}
           style={{
             flex: 1,
             padding: '16px',
             borderRadius: '16px',
-            background: 'rgba(74, 222, 128, 0.15)',
-            border: '1px solid var(--income)',
-            color: 'var(--income)',
+            background: isDemo ? 'rgba(255, 255, 255, 0.05)' : 'rgba(74, 222, 128, 0.15)',
+            border: `1px solid ${isDemo ? 'rgba(255,255,255,0.1)' : 'var(--income)'}`,
+            color: isDemo ? 'var(--text-dim)' : 'var(--income)',
             fontSize: '1rem',
-            fontWeight: 600
+            fontWeight: 600,
+            cursor: isDemo ? 'not-allowed' : 'pointer',
+            opacity: isDemo ? 0.5 : 1
           }}
         >
           ➕ הכנסה
         </button>
       </div>
+
+      {/* Demo mode notice for disabled buttons */}
+      {isDemo && (
+        <div style={{
+          textAlign: 'center',
+          marginBottom: '20px',
+          padding: '12px',
+          background: 'rgba(56, 189, 248, 0.1)',
+          borderRadius: '12px',
+          border: '1px solid rgba(56, 189, 248, 0.3)'
+        }}>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--accent)' }}>
+            💡 להוספת הוצאות והכנסות, התחבר עם Google
+          </p>
+        </div>
+      )}
 
       {/* Transaction History */}
       <div className="glass-card" style={{ marginBottom: '20px' }}>
@@ -344,34 +370,38 @@ export default function HomePage() {
                   }}>
                     {t.type === 'INCOME' ? '+' : '-'}{formatCurrency(t.amount)}
                   </div>
-                  <button
-                    onClick={() => setEditingTransaction(t)}
-                    style={{
-                      background: 'rgba(56, 189, 248, 0.2)',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '6px 8px',
-                      color: 'var(--accent)',
-                      fontSize: '0.8rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => handleDeleteTransaction(t.id)}
-                    style={{
-                      background: 'rgba(251, 113, 133, 0.2)',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '6px 8px',
-                      color: 'var(--expense)',
-                      fontSize: '0.8rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    🗑️
-                  </button>
+                  {!isDemo && (
+                    <>
+                      <button
+                        onClick={() => setEditingTransaction(t)}
+                        style={{
+                          background: 'rgba(56, 189, 248, 0.2)',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '6px 8px',
+                          color: 'var(--accent)',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTransaction(t.id)}
+                        style={{
+                          background: 'rgba(251, 113, 133, 0.2)',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '6px 8px',
+                          color: 'var(--expense)',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

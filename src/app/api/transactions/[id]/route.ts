@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
-import { getCurrentUserId } from '@/lib/auth/session'
+import { getCurrentUserId, isInDemoMode } from '@/lib/auth/session'
 import { updateTransactionSchema } from '@/types/schemas'
 
 /**
@@ -66,6 +66,14 @@ export async function PATCH(
     const userId = await getCurrentUserId()
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Demo users cannot update transactions
+    if (await isInDemoMode()) {
+      return NextResponse.json(
+        { error: 'Demo mode - cannot update transactions. Please login with Google.' },
+        { status: 403 }
+      )
     }
 
     const { id } = await params
