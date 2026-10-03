@@ -129,7 +129,7 @@ export async function createSession(user: { id: string; email: string | null; na
 
   cookieStore.set(DEMO_COOKIE_NAME, encoded, {
     httpOnly: true,
-    secure: false, // Allow HTTP for localhost testing
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60, // 7 days
     path: '/',

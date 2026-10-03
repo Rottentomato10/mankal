@@ -11,6 +11,13 @@ const DEMO_USER_ID = 'demo-user-001'
  * In production, this would handle Google OAuth callback
  */
 export async function POST() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { success: false, error: 'Demo login is disabled in production' },
+      { status: 403 }
+    )
+  }
+
   try {
     // Find or create demo user
     let user = await prisma.user.findUnique({

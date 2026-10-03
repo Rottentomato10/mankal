@@ -6,6 +6,13 @@ const DEMO_COOKIE_NAME = 'ceos-demo-session'
 const DEMO_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
 export async function POST() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { success: false, error: 'Demo login is disabled in production' },
+      { status: 403 }
+    )
+  }
+
   try {
     const cookieStore = await cookies()
 
@@ -20,7 +27,7 @@ export async function POST() {
 
     cookieStore.set(DEMO_COOKIE_NAME, Buffer.from(JSON.stringify(sessionData)).toString('base64'), {
       httpOnly: true,
-      secure: false, // Allow HTTP for localhost testing
+      secure: false, // reached only in non-production (see guard above)
       sameSite: 'lax',
       maxAge: DEMO_COOKIE_MAX_AGE,
       path: '/',
